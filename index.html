@@ -80,6 +80,21 @@
             </div>
             <div id="checkList" class="check-list"></div>
           </article>
+
+          <article class="quiz-panel" aria-label="Мини-тест по вопросу">
+            <div class="quiz-head">
+              <div>
+                <p class="eyebrow">Мини-тест</p>
+                <h3>Проверка знаний</h3>
+              </div>
+              <div class="quiz-actions">
+                <button id="resetQuizBtn" class="ghost-button" type="button">Очистить</button>
+                <button id="checkQuizBtn" class="primary-button" type="button">Проверить</button>
+              </div>
+            </div>
+            <div id="quizList" class="quiz-list"></div>
+            <div id="quizResult" class="quiz-result" aria-live="polite"></div>
+          </article>
         </section>
 
         <section id="mapView" class="view" aria-label="Карта связей">
@@ -107,5 +122,6 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="quiz.js"></script>
   </body>
 </html>
