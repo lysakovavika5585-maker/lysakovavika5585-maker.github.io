@@ -1,0 +1,382 @@
+const state = {
+  cards: [],
+  filtered: [],
+  activeId: null,
+  theme: "Все",
+  mode: "learn",
+  progress: JSON.parse(localStorage.getItem("gos-progress") || "{}"),
+};
+
+const els = {
+  doneCount: document.querySelector("#doneCount"),
+  totalCount: document.querySelector("#totalCount"),
+  searchInput: document.querySelector("#searchInput"),
+  themeTabs: document.querySelector("#themeTabs"),
+  questionList: document.querySelector("#questionList"),
+  questionNumber: document.querySelector("#questionNumber"),
+  questionTheme: document.querySelector("#questionTheme"),
+  questionTitle: document.querySelector("#questionTitle"),
+  questionEssence: document.querySelector("#questionEssence"),
+  termRow: document.querySelector("#termRow"),
+  logicText: document.querySelector("#logicText"),
+  relatedLinks: document.querySelector("#relatedLinks"),
+  answerPanel: document.querySelector("#answerPanel"),
+  answerContent: document.querySelector("#answerContent"),
+  checkList: document.querySelector("#checkList"),
+  revealBtn: document.querySelector("#revealBtn"),
+  collapseBtn: document.querySelector("#collapseBtn"),
+  resetCheckBtn: document.querySelector("#resetCheckBtn"),
+  shuffleBtn: document.querySelector("#shuffleBtn"),
+  connectionMap: document.querySelector("#connectionMap"),
+  reviewList: document.querySelector("#reviewList"),
+};
+
+const statusLabels = {
+  known: "Знаю",
+  learning: "Учу",
+  repeat: "Повторить",
+};
+
+fetch("questions.json")
+  .then((response) => response.json())
+  .then((cards) => {
+    state.cards = cards;
+    state.activeId = cards[0]?.id;
+    state.filtered = cards;
+    renderAll();
+  });
+
+function renderAll() {
+  applyFilter();
+  renderThemes();
+  renderList();
+  renderActiveCard();
+  renderMap();
+  renderReview();
+  renderScore();
+}
+
+function applyFilter() {
+  const query = els.searchInput.value.trim().toLowerCase();
+  state.filtered = state.cards.filter((card) => {
+    const inTheme = state.theme === "Все" || card.theme === state.theme;
+    const haystack = [card.title, card.theme, card.essence, card.terms.join(" ")].join(" ").toLowerCase();
+    return inTheme && (!query || haystack.includes(query));
+  });
+}
+
+function renderThemes() {
+  const themes = ["Все", ...new Set(state.cards.map((card) => card.theme))];
+  els.themeTabs.innerHTML = themes
+    .map((theme) => {
+      const active = theme === state.theme ? " active" : "";
+      return `<button class="theme-tab${active}" type="button" data-theme="${escapeHtml(theme)}">${escapeHtml(theme)}</button>`;
+    })
+    .join("");
+}
+
+function renderList() {
+  els.questionList.innerHTML = state.filtered
+    .map((card) => {
+      const active = card.id === state.activeId ? " active" : "";
+      const status = state.progress[card.id] || "";
+      const label = status ? ` · ${statusLabels[status]}` : "";
+      return `
+        <button class="question-item${active}" type="button" data-id="${card.id}">
+          <span class="num">${card.number}</span>
+          <span>
+            <strong>${escapeHtml(card.title)}</strong>
+            <span>${escapeHtml(card.theme)}${label}</span>
+          </span>
+        </button>
+      `;
+    })
+    .join("");
+
+  if (!state.filtered.length) {
+    els.questionList.innerHTML = '<div class="empty">Ничего не найдено. Попробуй другое слово или тему.</div>';
+  }
+}
+
+function renderActiveCard() {
+  const card = getActiveCard();
+  if (!card) return;
+
+  els.questionNumber.textContent = `Вопрос ${card.number}`;
+  els.questionTheme.textContent = card.theme;
+  els.questionTitle.textContent = card.title;
+  els.questionEssence.textContent = card.essence || "Открой ответ и собери вопрос по смысловым блокам.";
+  els.termRow.innerHTML = card.terms.map((term) => `<span class="term">${escapeHtml(term)}</span>`).join("");
+
+  const related = card.related.map((id) => state.cards.find((item) => item.id === id)).filter(Boolean);
+  els.logicText.textContent = buildLogicText(card, related);
+  els.relatedLinks.innerHTML = related
+    .map((item) => `<button class="related-link" type="button" data-id="${item.id}">${item.number}. ${escapeHtml(shortTitle(item.title))}</button>`)
+    .join("");
+
+  els.answerContent.innerHTML = card.sections.map(renderSection).join("");
+  els.checkList.innerHTML = buildCheckQuestions(card).map(renderCheckQuestion).join("");
+  setAnswerVisibility(false);
+  updateStatusButtons();
+}
+
+function renderSection(section) {
+  const blocks = [];
+  let list = [];
+
+  section.items.forEach((item) => {
+    if (item.list) {
+      list.push(`<li>${escapeHtml(item.text)}</li>`);
+      return;
+    }
+    if (list.length) {
+      blocks.push(`<ul>${list.join("")}</ul>`);
+      list = [];
+    }
+    blocks.push(`<p>${escapeHtml(item.text)}</p>`);
+  });
+
+  if (list.length) blocks.push(`<ul>${list.join("")}</ul>`);
+
+  return `
+    <section class="section-block">
+      <h4>${escapeHtml(section.heading)}</h4>
+      ${blocks.join("")}
+    </section>
+  `;
+}
+
+function buildCheckQuestions(card) {
+  const questions = [];
+  const firstMeaningful = card.sections
+    .flatMap((section) => section.items.filter((item) => !item.list).map((item) => item.text))
+    .filter((text) => text.length > 80);
+  const listSections = card.sections.filter((section) => section.items.filter((item) => item.list).length >= 2);
+
+  questions.push({
+    question: "Сформулируй главную идею билета своими словами.",
+    answer: card.essence || firstMeaningful[0] || "Назови определение, цель и ключевую логику вопроса.",
+  });
+
+  card.sections.slice(0, 4).forEach((section) => {
+    const bullets = section.items.filter((item) => item.list).slice(0, 5).map((item) => item.text);
+    const paragraph = section.items.find((item) => !item.list && item.text.length > 60)?.text;
+    if (bullets.length >= 2) {
+      questions.push({
+        question: `Перечисли ключевые пункты блока “${section.heading}”.`,
+        answer: bullets.join("; "),
+      });
+    } else if (paragraph) {
+      questions.push({
+        question: `Объясни блок “${section.heading}” без подсказки.`,
+        answer: paragraph,
+      });
+    }
+  });
+
+  if (card.terms.length) {
+    questions.push({
+      question: `Раскрой термины: ${card.terms.slice(0, 4).join(", ")}.`,
+      answer: "Проверь себя по полному ответу: эти термины должны прозвучать в определении, признаках или примерах билета.",
+    });
+  }
+
+  const related = card.related
+    .slice(0, 2)
+    .map((id) => state.cards.find((item) => item.id === id))
+    .filter(Boolean);
+  if (related.length) {
+    questions.push({
+      question: "С каким соседним билетом связан этот вопрос и почему?",
+      answer: related.map((item) => `${item.number}. ${item.title}`).join("; "),
+    });
+  }
+
+  listSections.slice(0, 1).forEach((section) => {
+    const items = section.items.filter((item) => item.list).slice(0, 6).map((item) => item.text);
+    questions.push({
+      question: `Восстанови список из блока “${section.heading}” по памяти.`,
+      answer: items.join("; "),
+    });
+  });
+
+  const unique = [];
+  const seen = new Set();
+  questions.forEach((item) => {
+    const key = item.question;
+    if (!seen.has(key) && item.answer) {
+      seen.add(key);
+      unique.push(item);
+    }
+  });
+  return unique.slice(0, 7);
+}
+
+function renderCheckQuestion(item, index) {
+  return `
+    <details class="check-item">
+      <summary>
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(item.question)}</strong>
+      </summary>
+      <p>${escapeHtml(item.answer)}</p>
+    </details>
+  `;
+}
+
+function renderMap() {
+  els.connectionMap.innerHTML = state.cards
+    .map((card) => {
+      const related = card.related
+        .slice(0, 3)
+        .map((id) => state.cards.find((item) => item.id === id)?.number)
+        .filter(Boolean)
+        .join(", ");
+      const active = card.id === state.activeId ? " active" : "";
+      return `
+        <button class="map-node${active}" type="button" data-id="${card.id}">
+          <span class="node-top">
+            <span>Вопрос ${card.number}</span>
+            <span>${escapeHtml(card.theme)}</span>
+          </span>
+          <strong>${escapeHtml(card.title)}</strong>
+          <span class="node-links">Связан с: ${related}</span>
+        </button>
+      `;
+    })
+    .join("");
+}
+
+function renderReview() {
+  const queue = state.cards
+    .filter((card) => ["repeat", "learning"].includes(state.progress[card.id]))
+    .sort((a, b) => statusWeight(state.progress[a.id]) - statusWeight(state.progress[b.id]) || a.number - b.number);
+
+  els.reviewList.innerHTML = queue
+    .map((card) => {
+      const status = state.progress[card.id];
+      return `
+        <button class="review-item" type="button" data-id="${card.id}">
+          <span class="${status}">${statusLabels[status]}</span>
+          <strong>${card.number}. ${escapeHtml(card.title)}</strong>
+          <span>${escapeHtml(card.terms.slice(0, 5).join(" · "))}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  if (!queue.length) {
+    els.reviewList.innerHTML = '<div class="empty">Пока нет вопросов в очереди. Отметь карточки как “Учу” или “Повторить”.</div>';
+  }
+}
+
+function renderScore() {
+  const known = state.cards.filter((card) => state.progress[card.id] === "known").length;
+  els.doneCount.textContent = known;
+  els.totalCount.textContent = state.cards.length;
+}
+
+function buildLogicText(card, related) {
+  if (!related.length) return "Начни с сути вопроса, затем перейди к терминам и проверь себя по ответу.";
+  const names = related.slice(0, 2).map((item) => `“${shortTitle(item.title)}”`).join(" и ");
+  return `Этот билет лучше учить вместе с ${names}: общие термины помогут не зубрить ответ отдельно, а собрать его в цепочку.`;
+}
+
+function selectCard(id, mode = state.mode) {
+  state.activeId = id;
+  switchMode(mode);
+  renderAll();
+  document.querySelector(".workspace").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function switchMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll(".mode-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.mode === mode);
+  });
+  document.querySelectorAll(".view").forEach((view) => view.classList.remove("active-view"));
+  document.querySelector(`#${mode}View`).classList.add("active-view");
+}
+
+function setAnswerVisibility(show) {
+  els.answerPanel.hidden = !show;
+  els.revealBtn.textContent = show ? "Ответ открыт" : "Открыть ответ";
+}
+
+function updateStatusButtons() {
+  const status = state.progress[state.activeId];
+  document.querySelectorAll(".status-button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.status === status);
+  });
+}
+
+function saveProgress(id, status) {
+  if (state.progress[id] === status) {
+    delete state.progress[id];
+  } else {
+    state.progress[id] = status;
+  }
+  localStorage.setItem("gos-progress", JSON.stringify(state.progress));
+  renderList();
+  renderMap();
+  renderReview();
+  renderScore();
+  updateStatusButtons();
+}
+
+function getActiveCard() {
+  return state.cards.find((card) => card.id === state.activeId) || state.cards[0];
+}
+
+function statusWeight(status) {
+  return status === "repeat" ? 0 : 1;
+}
+
+function shortTitle(title) {
+  return title.length > 58 ? `${title.slice(0, 55)}...` : title;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+els.searchInput.addEventListener("input", renderAll);
+
+els.themeTabs.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-theme]");
+  if (!button) return;
+  state.theme = button.dataset.theme;
+  renderAll();
+});
+
+document.addEventListener("click", (event) => {
+  const cardButton = event.target.closest("[data-id]");
+  if (cardButton && !cardButton.classList.contains("status-button")) {
+    selectCard(cardButton.dataset.id, "learn");
+  }
+});
+
+document.querySelectorAll(".mode-button").forEach((button) => {
+  button.addEventListener("click", () => switchMode(button.dataset.mode));
+});
+
+document.querySelectorAll(".status-button").forEach((button) => {
+  button.addEventListener("click", () => saveProgress(state.activeId, button.dataset.status));
+});
+
+els.revealBtn.addEventListener("click", () => setAnswerVisibility(true));
+els.collapseBtn.addEventListener("click", () => setAnswerVisibility(false));
+els.resetCheckBtn.addEventListener("click", () => {
+  document.querySelectorAll(".check-item[open]").forEach((item) => item.removeAttribute("open"));
+});
+
+els.shuffleBtn.addEventListener("click", () => {
+  const pool = state.filtered.length ? state.filtered : state.cards;
+  const next = pool[Math.floor(Math.random() * pool.length)];
+  if (next) selectCard(next.id, "learn");
+});
