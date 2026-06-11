@@ -23,9 +23,13 @@ const els = {
   answerPanel: document.querySelector("#answerPanel"),
   answerContent: document.querySelector("#answerContent"),
   checkList: document.querySelector("#checkList"),
+  quizList: document.querySelector("#quizList"),
+  quizResult: document.querySelector("#quizResult"),
   revealBtn: document.querySelector("#revealBtn"),
   collapseBtn: document.querySelector("#collapseBtn"),
   resetCheckBtn: document.querySelector("#resetCheckBtn"),
+  resetQuizBtn: document.querySelector("#resetQuizBtn"),
+  checkQuizBtn: document.querySelector("#checkQuizBtn"),
   shuffleBtn: document.querySelector("#shuffleBtn"),
   connectionMap: document.querySelector("#connectionMap"),
   reviewList: document.querySelector("#reviewList"),
@@ -37,7 +41,7 @@ const statusLabels = {
   repeat: "Повторить",
 };
 
-fetch("questions.json")
+fetch("questions.json", { cache: "no-store" })
   .then((response) => response.json())
   .then((cards) => {
     state.cards = cards;
@@ -116,6 +120,9 @@ function renderActiveCard() {
 
   els.answerContent.innerHTML = card.sections.map(renderSection).join("");
   els.checkList.innerHTML = buildCheckQuestions(card).map(renderCheckQuestion).join("");
+  els.quizList.innerHTML = buildMiniTest(card).map(renderQuizTask).join("");
+  els.quizResult.textContent = "";
+  els.quizResult.className = "quiz-result";
   setAnswerVisibility(false);
   updateStatusButtons();
 }
@@ -222,6 +229,189 @@ function renderCheckQuestion(item, index) {
       <p>${escapeHtml(item.answer)}</p>
     </details>
   `;
+}
+
+function buildMiniTest(card) {
+  const sectionsWithLists = card.sections.filter((section) => section.items.filter((item) => item.list).length >= 2);
+  const meaningfulSections = card.sections.filter((section) => section.heading && section.items.length);
+  const paragraphSections = meaningfulSections.filter((section) => section.items.some((item) => !item.list && item.text.length > 70));
+  const tasks = [];
+
+  const blankSource = getFirstParagraph(card);
+  const term = pickBlankTerm(blankSource, card.terms);
+  if (term) {
+    tasks.push({
+      type: "blank",
+      question: "Заполни пропуск в определении.",
+      text: makeBlankText(blankSource, term),
+      answer: term,
+    });
+  }
+
+  sectionsWithLists.slice(0, 3).forEach((section) => {
+    const correctItems = section.items.filter((item) => item.list).slice(0, 4).map((item) => item.text);
+    const fallback = section.items.find((item) => !item.list)?.text || section.heading;
+    tasks.push({
+      type: "choice",
+      question: `Что относится к блоку “${section.heading}”?`,
+      options: buildOptions(correctItems[0] || fallback, getDistractors(card, section.heading)),
+    });
+  });
+
+  paragraphSections.slice(0, 2).forEach((section) => {
+    const correct = section.items.find((item) => !item.list && item.text.length > 70)?.text;
+    if (!correct) return;
+    tasks.push({
+      type: "choice",
+      question: `Какое утверждение верно для раздела “${section.heading}”?`,
+      options: buildOptions(correct, getDistractors(card, section.heading)),
+    });
+  });
+
+  return tasks.slice(0, 6).map((task, index) => ({ ...task, id: `${card.id}-quiz-${index}` }));
+}
+
+function renderQuizTask(task, index) {
+  if (task.type === "blank") {
+    return `
+      <section class="quiz-item" data-quiz-id="${task.id}" data-type="blank" data-answer="${escapeHtml(task.answer)}">
+        <div class="quiz-question">
+          <span>${index + 1}</span>
+          <strong>${escapeHtml(task.question)}</strong>
+        </div>
+        <p>${escapeHtml(task.text)}</p>
+        <input class="quiz-input" type="text" placeholder="Впиши ответ" autocomplete="off" />
+        <div class="quiz-feedback"></div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="quiz-item" data-quiz-id="${task.id}" data-type="choice" data-answer="${task.options.findIndex((option) => option.correct)}">
+      <div class="quiz-question">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(task.question)}</strong>
+      </div>
+      <div class="quiz-options">
+        ${task.options
+          .map(
+            (option, optionIndex) => `
+              <label class="quiz-option">
+                <input type="radio" name="${task.id}" value="${optionIndex}" />
+                <span>${escapeHtml(option.text)}</span>
+              </label>
+            `
+          )
+          .join("")}
+      </div>
+      <div class="quiz-feedback"></div>
+    </section>
+  `;
+}
+
+function buildOptions(correct, distractors) {
+  const trimmedCorrect = cleanOption(correct);
+  const pool = distractors.map(cleanOption).filter((item) => item && item !== trimmedCorrect);
+  const options = [trimmedCorrect, ...pool.slice(0, 3)].slice(0, 4);
+  while (options.length < 4) {
+    options.push(["Планирование, организация, мотивация и контроль", "Влияние внешней и внутренней среды", "Рациональное использование ресурсов", "Принятие и исполнение управленческих решений"][options.length - 1]);
+  }
+  return shuffle(options.map((text, index) => ({ text, correct: index === 0 })));
+}
+
+function getDistractors(card, currentHeading) {
+  const fromOtherSections = card.sections
+    .filter((section) => section.heading !== currentHeading)
+    .flatMap((section) => section.items.map((item) => item.text));
+  const fromOtherCards = state.cards.filter((item) => item.id !== card.id).map((item) => item.title);
+  return [...fromOtherSections, ...fromOtherCards];
+}
+
+function getFirstParagraph(card) {
+  return (
+    card.sections
+      .flatMap((section) => section.items)
+      .find((item) => !item.list && item.text.length > 70)?.text ||
+    card.essence ||
+    card.title
+  );
+}
+
+function pickBlankTerm(text, terms) {
+  const normalizedText = text.toLowerCase();
+  return terms.find((term) => normalizedText.includes(term.toLowerCase())) || terms[0] || "";
+}
+
+function makeBlankText(text, answer) {
+  const escaped = answer.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const replaced = text.replace(new RegExp(escaped, "i"), blankLine());
+  return replaced === text ? `${blankLine()} — важное понятие в этом билете.` : replaced;
+}
+
+function blankLine() {
+  return "__________";
+}
+
+function cleanOption(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 210);
+}
+
+function shuffle(items) {
+  return items
+    .map((item, index) => ({ item, sort: Math.sin(index + item.text.length) }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ item }) => item);
+}
+
+function checkMiniTest() {
+  const quizItems = [...document.querySelectorAll(".quiz-item")];
+  let correct = 0;
+
+  quizItems.forEach((item) => {
+    const feedback = item.querySelector(".quiz-feedback");
+    const type = item.dataset.type;
+    let isCorrect = false;
+    let expected = item.dataset.answer || "";
+
+    if (type === "choice") {
+      const selected = item.querySelector("input[type='radio']:checked");
+      isCorrect = Boolean(selected && selected.value === expected);
+      expected = item.querySelector(`input[value="${expected}"]`)?.nextElementSibling?.textContent || "";
+    } else {
+      const value = normalizeAnswer(item.querySelector(".quiz-input")?.value || "");
+      isCorrect = value && normalizeAnswer(expected).includes(value);
+    }
+
+    item.classList.toggle("correct", isCorrect);
+    item.classList.toggle("incorrect", !isCorrect);
+    feedback.textContent = isCorrect ? "Верно" : `Проверь: ${expected}`;
+    if (isCorrect) correct += 1;
+  });
+
+  els.quizResult.textContent = `Результат: ${correct} из ${quizItems.length}.`;
+  els.quizResult.className = `quiz-result ${correct === quizItems.length ? "success" : "needs-work"}`;
+}
+
+function resetMiniTest() {
+  document.querySelectorAll(".quiz-item").forEach((item) => {
+    item.classList.remove("correct", "incorrect");
+    item.querySelectorAll("input[type='radio']").forEach((input) => {
+      input.checked = false;
+    });
+    const textInput = item.querySelector(".quiz-input");
+    if (textInput) textInput.value = "";
+    const feedback = item.querySelector(".quiz-feedback");
+    if (feedback) feedback.textContent = "";
+  });
+  els.quizResult.textContent = "";
+  els.quizResult.className = "quiz-result";
+}
+
+function normalizeAnswer(value) {
+  return value.toLowerCase().replace(/ё/g, "е").replace(/[^а-яa-z0-9]+/gi, " ").trim();
 }
 
 function renderMap() {
@@ -374,6 +564,8 @@ els.collapseBtn.addEventListener("click", () => setAnswerVisibility(false));
 els.resetCheckBtn.addEventListener("click", () => {
   document.querySelectorAll(".check-item[open]").forEach((item) => item.removeAttribute("open"));
 });
+els.checkQuizBtn.addEventListener("click", checkMiniTest);
+els.resetQuizBtn.addEventListener("click", resetMiniTest);
 
 els.shuffleBtn.addEventListener("click", () => {
   const pool = state.filtered.length ? state.filtered : state.cards;
