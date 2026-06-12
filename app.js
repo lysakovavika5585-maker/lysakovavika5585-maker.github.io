@@ -41,7 +41,7 @@ const statusLabels = {
   repeat: "Повторить",
 };
 
-fetch("questions.json", { cache: "no-store" })
+fetch("questions.json?v=20260613", { cache: "no-store" })
   .then((response) => response.json())
   .then((cards) => {
     state.cards = cards;
