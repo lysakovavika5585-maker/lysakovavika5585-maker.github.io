@@ -59,7 +59,9 @@ button {
 .topbar,
 .answer-head,
 .check-head,
+.brief-head,
 .quiz-head,
+.exam-head,
 .map-head {
   display: flex;
   align-items: center;
@@ -258,8 +260,11 @@ h3 {
 .question-card,
 .logic-panel,
 .answer-panel,
+.brief-panel,
 .check-panel,
 .quiz-panel,
+.exam-card,
+.exam-side,
 .review-grid,
 .map-head {
   border: 1px solid var(--line);
@@ -374,6 +379,45 @@ h3 {
 .answer-panel {
   margin-top: 20px;
   padding: 24px;
+}
+
+.brief-panel {
+  margin-top: 20px;
+  padding: 24px;
+}
+
+.brief-head h3 {
+  margin-bottom: 0;
+}
+
+.brief-content {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.brief-lead {
+  margin: 0;
+  color: #2c3949;
+  line-height: 1.58;
+}
+
+.brief-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.brief-list li {
+  color: #2c3949;
+  line-height: 1.5;
+}
+
+.brief-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .check-panel {
@@ -654,6 +698,69 @@ h3 {
   gap: 8px;
 }
 
+.exam-layout {
+  display: grid;
+  gap: 20px;
+}
+
+.exam-card,
+.exam-side {
+  padding: 24px;
+}
+
+.exam-head h2 {
+  margin-bottom: 0;
+}
+
+.exam-timer {
+  display: grid;
+  place-items: center;
+  min-width: 112px;
+  min-height: 56px;
+  border: 1px solid rgba(0, 109, 119, 0.28);
+  border-radius: 8px;
+  color: var(--teal-dark);
+  font-size: 24px;
+  font-weight: 900;
+  background: #eef8f7;
+}
+
+.exam-timer.warning {
+  color: #fff;
+  border-color: var(--coral);
+  background: var(--coral);
+}
+
+.exam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 14px;
+}
+
+.exam-meta span {
+  padding: 6px 10px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--blue);
+}
+
+#examPrompt {
+  max-width: 900px;
+  color: #2c3949;
+  font-size: 22px;
+  line-height: 1.42;
+}
+
+.exam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
 .empty {
   padding: 22px;
   border: 1px dashed var(--line);
@@ -691,7 +798,9 @@ h3 {
   .topbar,
   .answer-head,
   .check-head,
+  .brief-head,
   .quiz-head,
+  .exam-head,
   .map-head {
     align-items: stretch;
     flex-direction: column;
@@ -708,11 +817,18 @@ h3 {
   .question-card,
   .logic-panel,
   .answer-panel,
+  .brief-panel,
   .check-panel,
   .quiz-panel,
+  .exam-card,
+  .exam-side,
   .review-grid,
   .map-head {
     padding: 18px;
+  }
+
+  #examPrompt {
+    font-size: 19px;
   }
 
   .check-item summary {

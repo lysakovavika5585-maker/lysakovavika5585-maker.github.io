@@ -5,6 +5,10 @@ const state = {
   theme: "Все",
   mode: "learn",
   progress: JSON.parse(localStorage.getItem("gos-progress") || "{}"),
+  examId: null,
+  examSeconds: 15 * 60,
+  examRunning: false,
+  examTimerId: null,
 };
 
 const els = {
@@ -22,6 +26,7 @@ const els = {
   relatedLinks: document.querySelector("#relatedLinks"),
   answerPanel: document.querySelector("#answerPanel"),
   answerContent: document.querySelector("#answerContent"),
+  briefContent: document.querySelector("#briefContent"),
   checkList: document.querySelector("#checkList"),
   quizList: document.querySelector("#quizList"),
   quizResult: document.querySelector("#quizResult"),
@@ -33,6 +38,19 @@ const els = {
   shuffleBtn: document.querySelector("#shuffleBtn"),
   connectionMap: document.querySelector("#connectionMap"),
   reviewList: document.querySelector("#reviewList"),
+  examTitle: document.querySelector("#examTitle"),
+  examTimer: document.querySelector("#examTimer"),
+  examNumber: document.querySelector("#examNumber"),
+  examTheme: document.querySelector("#examTheme"),
+  examPrompt: document.querySelector("#examPrompt"),
+  startExamBtn: document.querySelector("#startExamBtn"),
+  pauseExamBtn: document.querySelector("#pauseExamBtn"),
+  resetExamBtn: document.querySelector("#resetExamBtn"),
+  examBriefBtn: document.querySelector("#examBriefBtn"),
+  examAnswerBtn: document.querySelector("#examAnswerBtn"),
+  examBriefPanel: document.querySelector("#examBriefPanel"),
+  examBriefContent: document.querySelector("#examBriefContent"),
+  hideExamBriefBtn: document.querySelector("#hideExamBriefBtn"),
 };
 
 const statusLabels = {
@@ -41,7 +59,7 @@ const statusLabels = {
   repeat: "Повторить",
 };
 
-fetch("questions.json?v=20260613", { cache: "no-store" })
+fetch("questions.json?v=20260613-exam", { cache: "no-store" })
   .then((response) => response.json())
   .then((cards) => {
     state.cards = cards;
@@ -57,6 +75,7 @@ function renderAll() {
   renderActiveCard();
   renderMap();
   renderReview();
+  renderExam();
   renderScore();
 }
 
@@ -119,12 +138,45 @@ function renderActiveCard() {
     .join("");
 
   els.answerContent.innerHTML = card.sections.map(renderSection).join("");
+  els.briefContent.innerHTML = renderBrief(card);
   els.checkList.innerHTML = buildCheckQuestions(card).map(renderCheckQuestion).join("");
   els.quizList.innerHTML = buildMiniTest(card).map(renderQuizTask).join("");
   els.quizResult.textContent = "";
   els.quizResult.className = "quiz-result";
   setAnswerVisibility(false);
   updateStatusButtons();
+}
+
+function renderBrief(card) {
+  const points = buildBriefPoints(card);
+  const terms = card.terms.slice(0, 6);
+  return `
+    <p class="brief-lead">${escapeHtml(card.essence || getFirstParagraph(card))}</p>
+    <ol class="brief-list">
+      ${points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+    </ol>
+    ${
+      terms.length
+        ? `<div class="brief-terms">${terms.map((term) => `<span class="term">${escapeHtml(term)}</span>`).join("")}</div>`
+        : ""
+    }
+  `;
+}
+
+function buildBriefPoints(card) {
+  const points = [];
+
+  card.sections.forEach((section) => {
+    const listItem = section.items.find((item) => item.list && item.text.length > 12)?.text;
+    const paragraph = section.items.find((item) => !item.list && item.text.length > 55)?.text;
+    const candidate = listItem || paragraph;
+    if (!candidate) return;
+    points.push(`${section.heading}: ${candidate}`);
+  });
+
+  if (!points.length && card.essence) points.push(card.essence);
+
+  return uniqueTexts(points.map(compactText)).slice(0, 6);
 }
 
 function renderSection(section) {
@@ -460,6 +512,85 @@ function renderReview() {
   }
 }
 
+function renderExam() {
+  const card = state.cards.find((item) => item.id === state.examId);
+  els.examTimer.textContent = formatTime(state.examSeconds);
+  els.examTimer.classList.toggle("warning", state.examSeconds <= 60);
+  els.pauseExamBtn.textContent = state.examRunning ? "Пауза" : "Продолжить";
+
+  if (!card) {
+    els.examTitle.textContent = "Случайный билет";
+    els.examNumber.textContent = "Билет не выбран";
+    els.examTheme.textContent = state.theme === "Все" ? "Все темы" : state.theme;
+    els.examPrompt.textContent = "Запусти тренировку: сайт вытянет случайный вопрос, а таймер поможет отрепетировать устный ответ.";
+    els.examBriefPanel.hidden = true;
+    els.examBriefContent.innerHTML = "";
+    return;
+  }
+
+  els.examTitle.textContent = card.title;
+  els.examNumber.textContent = `Вопрос ${card.number}`;
+  els.examTheme.textContent = card.theme;
+  els.examPrompt.textContent = card.essence || "Сформулируй определение, ключевые элементы и вывод по билету.";
+  els.examBriefContent.innerHTML = renderBrief(card);
+}
+
+function startExamRound() {
+  const pool = state.filtered.length ? state.filtered : state.cards;
+  const next = pool[Math.floor(Math.random() * pool.length)];
+  if (!next) return;
+
+  state.examId = next.id;
+  state.examSeconds = 15 * 60;
+  state.examRunning = true;
+  els.examBriefPanel.hidden = true;
+  ensureExamTimer();
+  renderExam();
+}
+
+function toggleExamTimer() {
+  if (!state.examId) return;
+  state.examRunning = !state.examRunning;
+  ensureExamTimer();
+  renderExam();
+}
+
+function resetExamTimer() {
+  state.examSeconds = 15 * 60;
+  state.examRunning = Boolean(state.examId);
+  ensureExamTimer();
+  renderExam();
+}
+
+function ensureExamTimer() {
+  if (state.examTimerId) clearInterval(state.examTimerId);
+  state.examTimerId = null;
+  if (!state.examRunning) return;
+
+  state.examTimerId = setInterval(() => {
+    state.examSeconds = Math.max(0, state.examSeconds - 1);
+    if (state.examSeconds === 0) {
+      state.examRunning = false;
+      clearInterval(state.examTimerId);
+      state.examTimerId = null;
+    }
+    renderExam();
+  }, 1000);
+}
+
+function showExamBrief() {
+  const card = state.cards.find((item) => item.id === state.examId);
+  if (!card) return;
+  els.examBriefPanel.hidden = false;
+  els.examBriefContent.innerHTML = renderBrief(card);
+}
+
+function openExamAnswer() {
+  if (!state.examId) return;
+  selectCard(state.examId, "learn");
+  setAnswerVisibility(true);
+}
+
 function renderScore() {
   const known = state.cards.filter((card) => state.progress[card.id] === "known").length;
   els.doneCount.textContent = known;
@@ -526,6 +657,29 @@ function shortTitle(title) {
   return title.length > 58 ? `${title.slice(0, 55)}...` : title;
 }
 
+function compactText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 260);
+}
+
+function uniqueTexts(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = item.toLowerCase();
+    if (!item || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -566,6 +720,14 @@ els.resetCheckBtn.addEventListener("click", () => {
 });
 els.checkQuizBtn.addEventListener("click", checkMiniTest);
 els.resetQuizBtn.addEventListener("click", resetMiniTest);
+els.startExamBtn.addEventListener("click", startExamRound);
+els.pauseExamBtn.addEventListener("click", toggleExamTimer);
+els.resetExamBtn.addEventListener("click", resetExamTimer);
+els.examBriefBtn.addEventListener("click", showExamBrief);
+els.examAnswerBtn.addEventListener("click", openExamAnswer);
+els.hideExamBriefBtn.addEventListener("click", () => {
+  els.examBriefPanel.hidden = true;
+});
 
 els.shuffleBtn.addEventListener("click", () => {
   const pool = state.filtered.length ? state.filtered : state.cards;

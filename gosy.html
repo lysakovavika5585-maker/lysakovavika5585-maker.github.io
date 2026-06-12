@@ -33,6 +33,7 @@
             <button class="mode-button active" data-mode="learn" type="button">Карточка</button>
             <button class="mode-button" data-mode="map" type="button">Связи</button>
             <button class="mode-button" data-mode="review" type="button">Повторение</button>
+            <button class="mode-button" data-mode="exam" type="button">Экзамен</button>
           </div>
           <button id="shuffleBtn" class="ghost-button" type="button">Случайный вопрос</button>
         </section>
@@ -68,6 +69,16 @@
               <button id="collapseBtn" class="ghost-button" type="button">Свернуть</button>
             </div>
             <div id="answerContent"></div>
+          </article>
+
+          <article class="brief-panel" aria-label="Короткая шпаргалка по вопросу">
+            <div class="brief-head">
+              <div>
+                <p class="eyebrow">Шпаргалка</p>
+                <h3>Короткий ответ</h3>
+              </div>
+            </div>
+            <div id="briefContent" class="brief-content"></div>
           </article>
 
           <article class="check-panel" aria-label="Проверка знаний по вопросу">
@@ -118,9 +129,43 @@
             <div id="reviewList" class="review-list"></div>
           </div>
         </section>
+
+        <section id="examView" class="view" aria-label="Экзаменационный режим">
+          <div class="exam-layout">
+            <article class="exam-card">
+              <div class="exam-head">
+                <div>
+                  <p class="eyebrow">Экзамен</p>
+                  <h2 id="examTitle">Случайный билет</h2>
+                </div>
+                <div class="exam-timer" id="examTimer">15:00</div>
+              </div>
+              <div class="exam-meta">
+                <span id="examNumber">Билет не выбран</span>
+                <span id="examTheme">Все темы</span>
+              </div>
+              <p id="examPrompt">Запусти тренировку: сайт вытянет случайный вопрос, а таймер поможет отрепетировать устный ответ.</p>
+              <div class="exam-actions">
+                <button id="startExamBtn" class="primary-button" type="button">Вытянуть билет</button>
+                <button id="pauseExamBtn" class="ghost-button" type="button">Пауза</button>
+                <button id="resetExamBtn" class="ghost-button" type="button">Сбросить таймер</button>
+                <button id="examBriefBtn" class="ghost-button" type="button">Показать шпаргалку</button>
+                <button id="examAnswerBtn" class="ghost-button" type="button">Полный ответ</button>
+              </div>
+            </article>
+
+            <article id="examBriefPanel" class="exam-side" hidden>
+              <div class="answer-head">
+                <h3>Что сказать в первую очередь</h3>
+                <button id="hideExamBriefBtn" class="ghost-button" type="button">Скрыть</button>
+              </div>
+              <div id="examBriefContent" class="brief-content"></div>
+            </article>
+          </div>
+        </section>
       </main>
     </div>
 
-    <script src="app.js?v=20260613"></script>
+    <script src="app.js?v=20260613-exam"></script>
   </body>
 </html>
