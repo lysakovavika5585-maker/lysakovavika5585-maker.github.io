@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Подготовка к госэкзамену</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Список вопросов">
+        <div class="brand">
+          <div>
+            <p class="eyebrow">Госэкзамен</p>
+            <h1>Тренажер билетов</h1>
+          </div>
+          <div class="score" aria-live="polite">
+            <span id="doneCount">0</span>/<span id="totalCount">0</span>
+          </div>
+        </div>
+
+        <div class="searchbar">
+          <input id="searchInput" type="search" placeholder="Найти вопрос, термин, тему" />
+        </div>
+
+        <div class="theme-tabs" id="themeTabs" role="tablist" aria-label="Темы"></div>
+        <div class="question-list" id="questionList"></div>
+      </aside>
+
+      <main class="workspace">
+        <section class="topbar" aria-label="Режим подготовки">
+          <div class="mode-switch" role="tablist">
+            <button class="mode-button active" data-mode="learn" type="button">Карточка</button>
+            <button class="mode-button" data-mode="map" type="button">Связи</button>
+            <button class="mode-button" data-mode="review" type="button">Повторение</button>
+          </div>
+          <button id="shuffleBtn" class="ghost-button" type="button">Случайный вопрос</button>
+        </section>
+
+        <section id="learnView" class="view active-view" aria-label="Карточка вопроса">
+          <div class="study-layout">
+            <article class="question-card">
+              <div class="question-meta">
+                <span id="questionNumber"></span>
+                <span id="questionTheme"></span>
+              </div>
+              <h2 id="questionTitle"></h2>
+              <p id="questionEssence"></p>
+              <div class="term-row" id="termRow"></div>
+              <div class="actions">
+                <button id="revealBtn" class="primary-button" type="button">Открыть ответ</button>
+                <button id="rememberBtn" class="status-button" data-status="known" type="button">Знаю</button>
+                <button id="learningBtn" class="status-button" data-status="learning" type="button">Учу</button>
+                <button id="repeatBtn" class="status-button" data-status="repeat" type="button">Повторить</button>
+              </div>
+            </article>
+
+            <aside class="logic-panel" aria-label="Логика подготовки">
+              <h3>Как связать с другими вопросами</h3>
+              <p id="logicText"></p>
+              <div id="relatedLinks" class="related-links"></div>
+            </aside>
+          </div>
+
+          <article id="answerPanel" class="answer-panel" hidden>
+            <div class="answer-head">
+              <h3>Ответ по структуре</h3>
+              <button id="collapseBtn" class="ghost-button" type="button">Свернуть</button>
+            </div>
+            <div id="answerContent"></div>
+          </article>
+
+          <article class="check-panel" aria-label="Проверка знаний по вопросу">
+            <div class="check-head">
+              <div>
+                <p class="eyebrow">Самопроверка</p>
+                <h3>Вопросы по этому билету</h3>
+              </div>
+              <button id="resetCheckBtn" class="ghost-button" type="button">Скрыть ответы</button>
+            </div>
+            <div id="checkList" class="check-list"></div>
+          </article>
+
+          <article class="quiz-panel" aria-label="Мини-тест по вопросу">
+            <div class="quiz-head">
+              <div>
+                <p class="eyebrow">Мини-тест</p>
+                <h3>Проверка знаний</h3>
+              </div>
+              <div class="quiz-actions">
+                <button id="resetQuizBtn" class="ghost-button" type="button">Очистить</button>
+                <button id="checkQuizBtn" class="primary-button" type="button">Проверить</button>
+              </div>
+            </div>
+            <div id="quizList" class="quiz-list"></div>
+            <div id="quizResult" class="quiz-result" aria-live="polite"></div>
+          </article>
+        </section>
+
+        <section id="mapView" class="view" aria-label="Карта связей">
+          <div class="map-head">
+            <div>
+              <p class="eyebrow">Маршрут</p>
+              <h2>Карта взаимосвязей</h2>
+            </div>
+            <p>Кликай по узлам: рядом стоят вопросы, которые проще учить вместе.</p>
+          </div>
+          <div id="connectionMap" class="connection-map"></div>
+        </section>
+
+        <section id="reviewView" class="view" aria-label="Повторение">
+          <div class="review-grid">
+            <div>
+              <p class="eyebrow">Фокус</p>
+              <h2>Что повторить сейчас</h2>
+              <p class="muted">В первую очередь показываются вопросы, отмеченные как “Повторить”, затем “Учу”.</p>
+            </div>
+            <div id="reviewList" class="review-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js?v=20260613"></script>
+  </body>
+</html>
